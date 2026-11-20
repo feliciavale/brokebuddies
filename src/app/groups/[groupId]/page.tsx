@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Plus, Receipt } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/access";
 import { netBalances, suggestTransfers } from "@/lib/split";
@@ -14,6 +13,7 @@ import { BackLink } from "@/components/back-link";
 import { BalanceBadge } from "@/components/balance-badge";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Members } from "./members";
+import { ArrowRight, Plus, ReceiptText } from "lucide-react";
 
 export default async function GroupPage({ params }: PageProps<"/groups/[groupId]">) {
   const { groupId } = await params;
@@ -110,7 +110,7 @@ export default async function GroupPage({ params }: PageProps<"/groups/[groupId]
                     className="flex items-center gap-4 p-4 transition-colors hover:bg-bg"
                   >
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-line text-muted">
-                      <Receipt size={18} aria-hidden />
+                      <ReceiptText size={18} aria-hidden />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{e.description}</p>

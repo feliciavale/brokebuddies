@@ -85,13 +85,13 @@
     @apply rounded-lg border border-line bg-surface p-4 sm:p-5;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-50;
+    @apply shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-fg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-fg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-tomato bg-tomato px-4 py-2 text-sm font-semibold text-oat transition-opacity hover:opacity-90;
+    @apply shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-md border border-tomato bg-tomato px-4 py-2 text-sm font-semibold text-oat transition-opacity hover:opacity-90;
   }
   .btn-sm {
     @apply px-3 py-1.5 text-xs;

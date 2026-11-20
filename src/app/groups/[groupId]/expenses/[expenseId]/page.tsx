@@ -70,7 +70,7 @@ export default async function ExpensePage({ params }: PageProps<"/groups/[groupI
             <h1 className="text-3xl font-bold tracking-tight">{expense.description}</h1>
             <p className="muted mt-1">{formatDate(expense.date, "long")}</p>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="label mb-0">Total</p>
             <p className="text-2xl font-bold tabular-nums">{formatIDR(expense.total)}</p>
           </div>
