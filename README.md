@@ -9,11 +9,13 @@ Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only 
 ## 1. Features
 
 **Sign-in**
+
 - Continue with Google: works on any device.
 - Or continue as a guest with just a name: no password or email. The account is kept in an encrypted cookie in that browser for one year.
 - Google sign-in only appears when `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are set.
 
 **Groups**
+
 - Create, rename and delete groups (delete asks for confirmation and removes all bills and photos).
 - Invite people with a link. Signing in from the link brings them straight back to join.
 - Add people who have no account as guests, with optional bank details and QRIS.
@@ -22,6 +24,7 @@ Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only 
 - Payment history with undo.
 
 **Bills**
+
 - Split by item (receipt), equally, by exact amounts, by percent or by shares.
 - Receipt photo: compressed in the browser to roughly 200 KB, then stored on Vercel Blob. Deleting a bill or group deletes its photo.
 - Receipt scanning: fills in items, quantities, tax, service and discount using Tesseract.js in the browser. No server and no API key. Everything stays editable, and the app warns when the items do not match the total printed on the receipt.
@@ -32,15 +35,18 @@ Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only 
 - All money is whole Rupiah (IDR). Every split adds up exactly to the total.
 
 **Paying back**
+
 - The result page shows who paid, their bank and account number with a copy button, and their QRIS.
 - The QRIS has each person's amount filled in. A checkbox switches to the plain code for payment apps that reject it.
 - "I have paid" / "Mark as paid" records a payment against the bill and the group balance.
 
 **Account**
+
 - Profile with display name and optional bank, account number, holder name and QRIS (upload a screenshot; only the QR text is stored).
 - Delete account: removes your account and payment details. Shared bills stay under your name as a guest so other members' balances remain correct. Groups where nobody else has an account are deleted.
 
 **Site**
+
 - Light and dark mode (follows the device, with a toggle).
 - Favicon, Apple touch icon, Privacy Policy, Terms & Conditions, robots.txt and sitemap.xml.
 - No analytics, no tracking cookies, no "made with" badge.
@@ -136,18 +142,19 @@ The first production build stops on purpose until Step 7 is done, because `NEXT_
 
 ### Step 8. Launch checklist
 
-| Requirement | Where it is handled |
-|---|---|
-| Custom domain connected | Step 7. The production build stops if `NEXT_PUBLIC_SITE_URL` is missing or still a `vercel.app` address. |
-| Site favicon | `src/app/favicon.ico`, `src/app/icon.svg`, `src/app/apple-icon.png` |
-| No "made with AI" tag | No badge, generator tag or AI credit anywhere in the site. Vercel's toolbar can appear on preview deployments; turn it off under Project Settings > General. |
-| Privacy Policy | `/privacy`, linked in the footer and next to the sign-in button |
-| Terms & Conditions | `/terms`, linked in the footer and next to the sign-in button |
-| Contact email on legal pages | The production build stops if `NEXT_PUBLIC_CONTACT_EMAIL` is missing |
+| Requirement                  | Where it is handled                                                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Custom domain connected      | Step 7. The production build stops if `NEXT_PUBLIC_SITE_URL` is missing or still a `vercel.app` address.                                                     |
+| Site favicon                 | `src/app/favicon.ico`, `src/app/icon.svg`, `src/app/apple-icon.png`                                                                                          |
+| No "made with AI" tag        | No badge, generator tag or AI credit anywhere in the site. Vercel's toolbar can appear on preview deployments; turn it off under Project Settings > General. |
+| Privacy Policy               | `/privacy`, linked in the footer and next to the sign-in button                                                                                              |
+| Terms & Conditions           | `/terms`, linked in the footer and next to the sign-in button                                                                                                |
+| Contact email on legal pages | The production build stops if `NEXT_PUBLIC_CONTACT_EMAIL` is missing                                                                                         |
 
 Run `npm run check:launch` at any time to see what is still missing.
 
 Before launch, also:
+
 - Sign in on the real domain with Google and as a guest, create a group, add a bill with a receipt photo and check the photo appears.
 - Scan a filled-in QRIS with GoPay, DANA, OVO and your bank app to confirm they accept the amount.
 - Publish the Google app (Step 4) so people outside your test users can sign in.
@@ -157,39 +164,39 @@ Before launch, also:
 
 ### Environment variables
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `DATABASE_URL` | yes | Prisma Postgres connection string |
-| `AUTH_SECRET` | yes | Encrypts the sign-in cookie. Do not change it once live |
-| `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | no | Google sign-in. Set both or neither |
-| `NEXT_PUBLIC_SITE_URL` | yes in production | Canonical URL, metadata, sitemap, legal pages |
-| `NEXT_PUBLIC_CONTACT_EMAIL` | yes in production | Footer and legal pages |
-| `NEXT_PUBLIC_OPERATOR_NAME` | no | Operator name in footer and legal pages (defaults to "BrokeBuddies") |
-| `BLOB_READ_WRITE_TOKEN` | recommended | Receipt photo storage. Without it, bills save without photos |
-| `AUTH_TRUST_HOST` | local only | Lets Auth.js run on localhost |
+| Variable                               | Required          | Purpose                                                              |
+| -------------------------------------- | ----------------- | -------------------------------------------------------------------- |
+| `DATABASE_URL`                         | yes               | Prisma Postgres connection string                                    |
+| `AUTH_SECRET`                          | yes               | Encrypts the sign-in cookie. Do not change it once live              |
+| `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | no                | Google sign-in. Set both or neither                                  |
+| `NEXT_PUBLIC_SITE_URL`                 | yes in production | Canonical URL, metadata, sitemap, legal pages                        |
+| `NEXT_PUBLIC_CONTACT_EMAIL`            | yes in production | Footer and legal pages                                               |
+| `NEXT_PUBLIC_OPERATOR_NAME`            | no                | Operator name in footer and legal pages (defaults to "BrokeBuddies") |
+| `BLOB_READ_WRITE_TOKEN`                | recommended       | Receipt photo storage. Without it, bills save without photos         |
+| `AUTH_TRUST_HOST`                      | local only        | Lets Auth.js run on localhost                                        |
 
 ### Scripts
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Development server |
-| `npm run typecheck` | Generates Next.js route types, then runs TypeScript |
-| `npm test` | Unit tests: splitting, rounding, balances, QRIS, receipt parser |
-| `npm run lint` | ESLint |
-| `npm run db:migrate` | Create or apply a migration (`prisma migrate dev`) |
-| `npm run db:studio` | Browse the database |
-| `npm run check:launch` | Launch requirement check |
+| Command                | What it does                                                    |
+| ---------------------- | --------------------------------------------------------------- |
+| `npm run dev`          | Development server                                              |
+| `npm run typecheck`    | Generates Next.js route types, then runs TypeScript             |
+| `npm test`             | Unit tests: splitting, rounding, balances, QRIS, receipt parser |
+| `npm run lint`         | ESLint                                                          |
+| `npm run db:migrate`   | Create or apply a migration (`prisma migrate dev`)              |
+| `npm run db:studio`    | Browse the database                                             |
+| `npm run check:launch` | Launch requirement check                                        |
 
 ### Where to change things
 
-| What | File |
-|---|---|
-| App name, legal "last updated" date | `src/lib/site.ts` |
-| Privacy Policy / Terms text | `src/app/privacy/page.tsx`, `src/app/terms/page.tsx` |
-| Landing page copy | `src/app/page.tsx` |
-| Sign-in form | `src/components/sign-in-form.tsx` |
-| Colours and component styles | `src/app/globals.css` |
-| Database tables | `prisma/schema.prisma`, then `npx prisma migrate dev --name what-changed` |
+| What                                | File                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| App name, legal "last updated" date | `src/lib/site.ts`                                                         |
+| Privacy Policy / Terms text         | `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`                      |
+| Landing page copy                   | `src/app/page.tsx`                                                        |
+| Sign-in form                        | `src/components/sign-in-form.tsx`                                         |
+| Colours and component styles        | `src/app/globals.css`                                                     |
+| Database tables                     | `prisma/schema.prisma`, then `npx prisma migrate dev --name what-changed` |
 
 ### How the money maths works
 
