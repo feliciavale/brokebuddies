@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth.js ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Optional payment details, shown to people who owe you
+  bankName      String?
+  accountNumber String? // nomor rekening
+  accountHolder String?
+  qrisPayload   String? // decoded QRIS text, not the image
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships GroupMember[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------- App ----------
+
+model Group {
+  id         String        @id @default(cuid())
+  name       String
+  currency   String        @default("IDR")
+  inviteCode String        @unique @default(cuid())
+  members    GroupMember[]
+  expenses   Expense[]
+  settlements Settlement[]
+  createdAt  DateTime      @default(now())
+}
+
+/// A person in a group. userId is null for guests without an account.
+model GroupMember {
+  id            String   @id @default(cuid())
+  groupId       String
+  userId        String?
+  name          String
+  // Optional payment details for guests (linked users use their profile)
+  bankName      String?
+  accountNumber String?
+  accountHolder String?
+  qrisPayload   String?
+
+  group         Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  paidExpenses  Expense[]             @relation("PaidBy")
+  shares        ExpenseShare[]
+  itemAssigns   ExpenseItemAssignee[]
+  sentPayments  Settlement[]          @relation("From")
+  gotPayments   Settlement[]          @relation("To")
+  createdAt     DateTime @default(now())
+
+  @@unique([groupId, userId])
+}
+
+enum SplitType {
+  EQUAL
+  EXACT
+  PERCENT
+  SHARES
+  ITEMIZED
+}
+
+/// All money fields are whole Rupiah (Int).
+model Expense {
+  id          String     @id @default(cuid())
+  groupId     String
+  description String
+  date        DateTime   @default(now())
+  paidById    String
+  splitType   SplitType
+  total       Int
+  // Receipt (ITEMIZED) extras
+  tax         Int        @default(0)
+  service     Int        @default(0)
+  discount    Int        @default(0)
+  receiptUrl  String?
+  category    String?
+  note        String?
+
+  group       Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy      GroupMember   @relation("PaidBy", fields: [paidById], references: [id], onDelete: Cascade)
+  items       ExpenseItem[]
+  shares      ExpenseShare[]
+  settlements Settlement[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([groupId, date])
+}
+
+/// One line on a receipt. price = line total (unit price x quantity).
+model ExpenseItem {
+  id        String                @id @default(cuid())
+  expenseId String
+  name      String
+  quantity  Int                   @default(1)
+  price     Int
+  position  Int                   @default(0)
+  expense   Expense               @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  assignees ExpenseItemAssignee[]
+}
+
+model ExpenseItemAssignee {
+  itemId   String
+  memberId String
+  item     ExpenseItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  member   GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, memberId])
+}
+
+/// Final amount each member owes for an expense (computed on save).
+/// input holds the raw value typed for EXACT / PERCENT / SHARES.
+model ExpenseShare {
+  id        String      @id @default(cuid())
+  expenseId String
+  memberId  String
+  amount    Int
+  input     Int?
+  expense   Expense     @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member    GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, memberId])
+}
+
+/// A payment from one member to another ("I paid you back").
+model Settlement {
+  id         String      @id @default(cuid())
+  groupId    String
+  fromId     String
+  toId       String
+  amount     Int
+  expenseId  String?
+  createdAt  DateTime    @default(now())
+  group      Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  from       GroupMember @relation("From", fields: [fromId], references: [id], onDelete: Cascade)
+  to         GroupMember @relation("To", fields: [toId], references: [id], onDelete: Cascade)
+  expense    Expense?    @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+}
