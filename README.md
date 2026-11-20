@@ -1,5 +1,7 @@
 # BrokeBuddies
 
+**Live site: [brokebuddies.vercel.app](https://brokebuddies.vercel.app)**
+
 Split a restaurant bill by what each person ordered. Tax and service are shared in proportion to each order, and everyone sees how to pay back the person who paid: bank account number, or QRIS with the amount already filled in.
 
 Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only guest sign-in), Vercel Blob and Tailwind CSS 4. Runs on free tiers. The custom domain is the only thing you pay for.
@@ -132,18 +134,18 @@ Open http://localhost:3000. Receipt photos are only saved once `BLOB_READ_WRITE_
 ### Step 6. Deploy to Vercel (free Hobby plan)
 
 1. Vercel > Add New > Project > import `feliciavale/brokebuddies`.
-2. Environment Variables: add `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (only if using Google), `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_OPERATOR_NAME`. Do not add `AUTH_TRUST_HOST`.
+2. Environment Variables: add `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (only if using Google), `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_OPERATOR_NAME` and `NEXT_PUBLIC_SITE_URL` (`https://brokebuddies.vercel.app` until you have a domain). Do not add `AUTH_TRUST_HOST`.
 3. Storage > Create > Blob, then connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`. Copy it into your local `.env` too if you want photo uploads while developing.
 4. Deploy. Vercel runs `npm run vercel-build`: launch check, `prisma generate`, `prisma migrate deploy`, `next build`.
 
-The first production build stops on purpose until Step 7 is done, because `NEXT_PUBLIC_SITE_URL` is not set yet.
+Until a custom domain is connected, also add `SKIP_LAUNCH_CHECK` = `1`. Without it, production builds stop on purpose, because `NEXT_PUBLIC_SITE_URL` is still a `vercel.app` address. Remove it in Step 7.
 
 ### Step 7. Connect the custom domain
 
 1. Buy a domain from any registrar. This is the only paid step. Indonesian options such as `.my.id`, `.id` or `.web.id` are sold by local registrars; check their price and registration requirements.
 2. Vercel > Project > Settings > Domains > add your domain, then add the DNS records Vercel shows at your registrar.
 3. In the same screen, set the `*.vercel.app` address to redirect to your domain, so everyone signs in on one address.
-4. Set `NEXT_PUBLIC_SITE_URL` to `https://your-domain` and redeploy.
+4. Set `NEXT_PUBLIC_SITE_URL` to `https://your-domain`, delete `SKIP_LAUNCH_CHECK`, and redeploy.
 5. If you use Google, add the domain's origin and redirect URI to your Google client (Step 4).
 
 ### Step 8. Launch checklist
@@ -179,6 +181,7 @@ Before launch, also:
 | `NEXT_PUBLIC_OPERATOR_NAME` | no | Operator name in footer and legal pages (defaults to "BrokeBuddies") |
 | `BLOB_READ_WRITE_TOKEN` | recommended | Receipt photo storage. Without it, bills save without photos |
 | `AUTH_TRUST_HOST` | local only | Lets Auth.js run on localhost |
+| `SKIP_LAUNCH_CHECK` | temporary | Set to `1` to deploy on `vercel.app` before the custom domain is connected |
 
 ### Scripts
 
