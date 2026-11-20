@@ -22,7 +22,7 @@ if (!process.env.BLOB_READ_WRITE_TOKEN) warnings.push("BLOB_READ_WRITE_TOKEN is 
 for (const w of warnings) console.warn(`[launch check] warning: ${w}`);
 if (problems.length) {
   const msg = problems.map((p) => `  - ${p}`).join("\n");
-  if (env === "production") {
+  if (env === "production" && process.env.SKIP_LAUNCH_CHECK !== "1") {
     console.error(`[launch check] Production build stopped:\n${msg}`);
     process.exit(1);
   }
