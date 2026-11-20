@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/access";
-import { createGroup } from "@/app/actions";
+import { CreateGroupForm } from "@/components/create-group-form";
 import { netBalances } from "@/lib/split";
 import { Monogram } from "@/components/monogram";
 import { BalanceBadge } from "@/components/balance-badge";
@@ -32,17 +32,7 @@ export default async function GroupsPage() {
         <p className="muted mt-1">Create a group for each trip, utilities or regular dinner.</p>
       </div>
 
-      <form action={createGroup} className="card flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label className="label" htmlFor="name">
-            New group name
-          </label>
-          <input id="name" name="name" className="input" placeholder="Dinner" required maxLength={60} />
-        </div>
-        <button className="btn-primary" type="submit">
-          Create group
-        </button>
-      </form>
+      <CreateGroupForm />
 
       {memberships.length === 0 ? (
         <p className="muted">

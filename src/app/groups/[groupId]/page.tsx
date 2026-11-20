@@ -6,7 +6,8 @@ import { netBalances, suggestTransfers } from "@/lib/split";
 import { formatIDR } from "@/lib/money";
 import { formatDate } from "@/lib/site";
 import { hasPaymentInfo, paymentInfo } from "@/lib/payment";
-import { deleteGroup, deleteSettlement, renameGroup } from "@/app/actions";
+import { deleteGroup, deleteSettlement } from "@/app/actions";
+import { RenameGroupForm } from "@/components/rename-group-form";
 import { InviteLink } from "@/components/invite-link";
 import { SettleButton } from "@/components/settle-button";
 import { BackLink } from "@/components/back-link";
@@ -183,17 +184,7 @@ export default async function GroupPage({ params }: PageProps<"/groups/[groupId]
       {/* Settings */}
       <details className="card">
         <summary className="cursor-pointer font-bold">Group settings</summary>
-        <form action={renameGroup.bind(null, groupId)} className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label className="label" htmlFor="rename">
-              Group name
-            </label>
-            <input id="rename" name="name" className="input" defaultValue={group.name} required maxLength={60} />
-          </div>
-          <button className="btn" type="submit">
-            Rename
-          </button>
-        </form>
+        <RenameGroupForm groupId={groupId} name={group.name} />
         <form action={deleteGroup.bind(null, groupId)} className="mt-6 border-t border-line pt-4">
           <p className="muted mb-3">Deleting the group removes all of its bills, receipt photos and payments.</p>
           <ConfirmButton message={`Delete "${group.name}" and all of its bills? This cannot be undone.`}>

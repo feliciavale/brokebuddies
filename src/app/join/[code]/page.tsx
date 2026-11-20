@@ -4,6 +4,7 @@ import { getUser } from "@/lib/access";
 import { SignInForm } from "@/components/sign-in-form";
 import { prisma } from "@/lib/prisma";
 import { Monogram } from "@/components/monogram";
+import { SubmitButton } from "@/components/submit-button";
 
 export const metadata = { title: "Join a group" };
 
@@ -31,9 +32,9 @@ export default async function JoinPage({ params }: PageProps<"/join/[code]">) {
       </div>
       {user ? (
         <form action={joinGroup.bind(null, code)}>
-          <button className="btn-primary w-full" type="submit">
+          <SubmitButton className="btn-primary w-full" pendingText="Joining...">
             Join group
-          </button>
+          </SubmitButton>
         </form>
       ) : (
         <SignInForm next={`/join/${code}`} />

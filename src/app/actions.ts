@@ -85,7 +85,7 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
     prisma.user.update({ where: { id: user.id }, data: { name, ...payment } }),
     prisma.groupMember.updateMany({ where: { userId: user.id }, data: { name } }),
   ]);
-  revalidatePath("/", "layout");
+  refreshAll();
   return { ok: true };
 }
 
@@ -113,30 +113,45 @@ export async function deleteAccount() {
     prisma.user.delete({ where: { id: user.id } }),
   ]);
   await deleteBlobs(receipts.map((r) => r.receiptUrl!));
+  refreshAll();
   redirect("/");
 }
 
-// ---------- groups ----------
+export type FormState = { error: string } | null;
 
-export async function createGroup(formData: FormData) {
+export async function createGroup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
-  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
-  if (!name) return;
-  const group = await prisma.group.create({
-    data: {
-      name,
-      members: { create: { userId: user.id, name: user.name ?? user.email ?? "Me" } },
-    },
+  const name = cleanGroupName(formData.get("name"));
+  if (!name) return { error: "Give the group a name." };
+
+  const groupId = await prisma.$transaction(async (tx) => {
+    // One create at a time per person, so double taps cannot slip past the duplicate check
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`;
+    if (await groupNameTaken(tx, user.id, name)) return null;
+    const group = await tx.group.create({
+      data: {
+        name,
+        members: { create: { userId: user.id, name: user.name ?? user.email ?? "Me" } },
+      },
+    });
+    return group.id;
   });
-  redirect(`/groups/${group.id}`);
+
+  if (!groupId) return { error: `You already have a group called "${name}". Pick a different name.` };
+  refreshAll();
+  redirect(`/groups/${groupId}`);
 }
 
-export async function renameGroup(groupId: string, formData: FormData) {
-  await requireMember(groupId);
-  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
-  if (!name) return;
+export async function renameGroup(groupId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const { user } = await requireMember(groupId);
+  const name = cleanGroupName(formData.get("name"));
+  if (!name) return { error: "Give the group a name." };
+  if (await groupNameTaken(prisma, user.id, name, groupId)) {
+    return { error: `You already have a group called "${name}". Pick a different name.` };
+  }
   await prisma.group.update({ where: { id: groupId }, data: { name } });
-  revalidatePath(`/groups/${groupId}`);
+  refreshAll();
+  return null;
 }
 
 export async function deleteGroup(groupId: string) {
@@ -147,6 +162,7 @@ export async function deleteGroup(groupId: string) {
   });
   await prisma.group.delete({ where: { id: groupId } });
   await deleteBlobs(receipts.map((r) => r.receiptUrl!));
+  refreshAll();
   redirect("/groups");
 }
 
@@ -159,6 +175,7 @@ export async function joinGroup(inviteCode: string) {
     update: {},
     create: { groupId: group.id, userId: user.id, name: user.name ?? user.email ?? "Member" },
   });
+  refreshAll();
   redirect(`/groups/${group.id}`);
 }
 
@@ -182,7 +199,7 @@ export async function claimGuest(groupId: string, guestId: string) {
       data: { userId: user.id, name: user.name ?? guest.name },
     }),
   ]);
-  revalidatePath(`/groups/${groupId}`);
+  refreshAll();
 }
 
 export async function addGuest(groupId: string, input: unknown): Promise<ActionResult> {
@@ -192,7 +209,7 @@ export async function addGuest(groupId: string, input: unknown): Promise<ActionR
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
   const m = await prisma.groupMember.create({ data: { groupId, ...parsed.data } });
-  revalidatePath(`/groups/${groupId}`);
+  refreshAll();
   return { ok: true, id: m.id };
 }
 
@@ -207,7 +224,7 @@ export async function updateGuest(groupId: string, memberId: string, input: unkn
     data: parsed.data,
   });
   if (res.count === 0) return { ok: false, error: "Only guests can be edited here" };
-  revalidatePath(`/groups/${groupId}`);
+  refreshAll();
   return { ok: true };
 }
 
@@ -323,7 +340,7 @@ export async function saveExpense(input: ExpenseInput): Promise<ActionResult> {
   });
 
   if (oldReceipt) await deleteBlobs([oldReceipt]);
-  revalidatePath(`/groups/${d.groupId}`);
+  refreshAll();
   return { ok: true, id };
 }
 
@@ -333,7 +350,7 @@ export async function deleteExpense(groupId: string, expenseId: string) {
   if (!expense) return;
   await prisma.expense.delete({ where: { id: expenseId } });
   if (expense.receiptUrl) await deleteBlobs([expense.receiptUrl]);
-  revalidatePath(`/groups/${groupId}`);
+  refreshAll();
   redirect(`/groups/${groupId}`);
 }
 
@@ -354,17 +371,52 @@ export async function recordSettlement(input: {
   });
   if (count !== 2) return { ok: false, error: "Member not found" };
   await prisma.settlement.create({ data: input });
-  revalidatePath(`/groups/${input.groupId}`, "layout");
+  refreshAll();
   return { ok: true };
 }
 
 export async function deleteSettlement(groupId: string, settlementId: string) {
   await requireMember(groupId);
   await prisma.settlement.deleteMany({ where: { id: settlementId, groupId } });
-  revalidatePath(`/groups/${groupId}`, "layout");
+  refreshAll();
 }
 
 // ---------- helpers ----------
+
+/**
+ * Mark every page as out of date after a change, so lists (your groups,
+ * balances, bills) show the change straight away, including when you go
+ * back with the browser's back button. No manual refresh needed.
+ */
+function refreshAll() {
+  revalidatePath("/", "layout");
+}
+
+/** "  Friday   dinner " -> "Friday dinner" */
+function cleanGroupName(value: FormDataEntryValue | null) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 60);
+}
+
+/** Is there already a group with this name (ignoring case) among this user's groups? */
+async function groupNameTaken(
+  db: Pick<typeof prisma, "group">,
+  userId: string,
+  name: string,
+  exceptGroupId?: string,
+) {
+  const existing = await db.group.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      members: { some: { userId } },
+      ...(exceptGroupId ? { id: { not: exceptGroupId } } : {}),
+    },
+    select: { id: true },
+  });
+  return Boolean(existing);
+}
 
 async function deleteBlobs(urls: string[]) {
   if (!urls.length || !process.env.BLOB_READ_WRITE_TOKEN) return;
