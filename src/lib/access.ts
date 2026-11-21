@@ -2,14 +2,15 @@ import "server-only";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { cache } from "react";
 
 /** The signed-in user, or null (also null if the account was deleted). */
-export async function getUser() {
+export const getUser = cache(async () => {
   const session = await auth();
   const id = session?.user?.id;
   if (!id) return null;
   return prisma.user.findUnique({ where: { id } });
-}
+});
 
 /** The signed-in user, or redirect to the landing page. */
 export async function requireUser() {
