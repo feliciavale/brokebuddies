@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/access";
 import { ExpenseForm } from "@/components/expense-form";
+import { smartScanEnabled } from "@/lib/ai-receipt";
 import { BackLink } from "@/components/back-link";
 
 export default async function EditExpensePage({ params }: PageProps<"/groups/[groupId]/expenses/[expenseId]/edit">) {
@@ -29,6 +30,7 @@ export default async function EditExpensePage({ params }: PageProps<"/groups/[gr
         groupId={groupId}
         members={members}
         meId={me.id}
+        smartScan={smartScanEnabled}
         initial={{
           expenseId,
           description: expense.description,

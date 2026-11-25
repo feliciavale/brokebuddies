@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { allocate, netBalances, splitItemized, splitSimple, suggestTransfers } from "../split";
 import { crc16, isValidQris, qrisWithAmount, parseTlv } from "../qris";
-import { parseReceiptText } from "../receipt-parser";
+import { matchPeople, parseReceiptText, receiptSum } from "../receipt-parser";
+import fs from "node:fs";
+import path from "node:path";
 import { formatIDR, parseIDR } from "../money";
 
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -77,7 +79,7 @@ describe("qris", () => {
     tlv("52", "5812") +
     tlv("53", "360") +
     tlv("58", "ID") +
-    tlv("59", "Felicia") +
+    tlv("59", "MICHELLE") +
     tlv("60", "JAKARTA") +
     tlv("61", "12340") +
     "6304";
@@ -112,14 +114,63 @@ Tunai 150.000
 Kembali 12.160`;
     const r = parseReceiptText(text);
     expect(r.items).toEqual([
-      { name: "Nasi Goreng", quantity: 2, price: 50000 },
-      { name: "Es Teh Manis", quantity: 1, price: 8000 },
-      { name: "Ayam Bakar", quantity: 2, price: 70000 },
+      { name: "Nasi Goreng", quantity: 2, price: 50000, people: [] },
+      { name: "Es Teh Manis", quantity: 1, price: 8000, people: [] },
+      { name: "Ayam Bakar", quantity: 2, price: 70000, people: [] },
     ]);
     expect(r.service).toBe(6400);
     expect(r.tax).toBe(13440);
     expect(r.discount).toBe(10000);
     expect(r.total).toBe(137840);
+    expect(r.taxIncluded).toBe(false);
+    expect(receiptSum(r)).toBe(137840);
+  });
+
+  const tuku = fs.readFileSync(path.join(__dirname, "fixtures/tuku-receipt.txt"), "utf8");
+  const expectTuku = (text: string) => {
+    const r = parseReceiptText(text);
+    expect(r.items.map((i) => [i.quantity, i.name, i.price, i.people])).toEqual([
+      [1, "Es Kopi Susu Tetangga", 27000, ["Somantri"]],
+      [2, "Es Kopi Susu Tetangga", 54000, ["Andersen", "Eric"]],
+      [1, "Es Kopi Susu Tetangga", 27000, ["Imam"]],
+      [1, "Es Kopi Susu Tetangga", 27000, ["Papin"]],
+      [1, "Iced Kopi Hitam Tetangga", 26000, ["Felicia"]],
+    ]);
+    expect(r.discount).toBe(5000);
+    expect(r.taxIncluded).toBe(true);
+    expect(r.tax).toBe(0);
+    expect(r.taxPrinted).toBe(14182);
+    expect(r.total).toBe(156000);
+    expect(receiptSum(r)).toBe(156000);
+  };
+
+  it("reads two-line items, names, promos and tax-included receipts", () => expectTuku(tuku));
+
+  it("copes with common OCR mistakes", () => {
+    const noisy = tuku
+      .replace("1x 27,000 27,000", "Ix 27.000 27.000") // 1 read as I, comma read as dot
+      .replace("Sub Total", "Sub Tota1")
+      .replace("[OL]", "[0L]")
+      .replace("TOTAL 156,000", "TOTAL 156.000");
+    expectTuku(noisy);
+  });
+
+  it("treats printed tax as included when items already add up to the total", () => {
+    const r = parseReceiptText("Kopi 20.000\nRoti 10.000\nTotal 30.000\nPPN 2.727");
+    expect(r.taxIncluded).toBe(true);
+    expect(r.tax).toBe(0);
+    expect(receiptSum(r)).toBe(30000);
+  });
+
+  it("matches receipt names to members by first name", () => {
+    const members = [
+      { id: "f", name: "Felicia" },
+      { id: "e", name: "Eric Tan" },
+      { id: "a", name: "Andi" },
+    ];
+    expect(matchPeople(["FELICIA"], members)).toEqual(["f"]);
+    expect(matchPeople(["Andersen", "Eric"], members)).toEqual(["e"]);
+    expect(matchPeople(["Nobody"], members)).toEqual([]);
   });
 });
 

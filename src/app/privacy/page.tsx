@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ContactLine, LegalPage, LegalSection } from "@/components/legal";
 import { site } from "@/lib/site";
-import { googleEnabled } from "@/auth"
+import { googleEnabled } from "@/auth";
+import { smartScanEnabled } from "@/lib/ai-receipt";
 
 export const metadata = { title: "Privacy Policy" };
 
@@ -15,10 +16,10 @@ export default function PrivacyPage() {
       </p>
 
       <LegalSection title="Information we collect">
-                <p>When you start with just your name, we store that name and nothing else about you.</p>
+        <p>When you start with just your name, we store that name and nothing else about you.</p>
         {googleEnabled && (
           <>
-            <p>If you sign in with Google, we receive and store:</p>
+            <p>If you choose to sign in with Google instead, we receive and store:</p>
             <ul>
               <li>your name, email address and profile picture link;</li>
               <li>your Google account identifier and the sign-in tokens Google issues, used only to keep you signed in.</li>
@@ -63,11 +64,27 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="Receipt scanning">
-        <p>
-          Scanning a receipt happens in your browser. The photo is not sent to us or to any other service for scanning.
-          The first time you scan, your browser downloads the scanning software and language files from the jsDelivr
-          public CDN (cdn.jsdelivr.net).
-        </p>
+        {smartScanEnabled ? (
+          <>
+            <p>
+              When you tap &quot;Smart scan&quot;, the receipt photo is sent to Google&apos;s Gemini API, which reads the
+              items and amounts and sends them back to fill in the bill. We use Gemini&apos;s free tier, under which Google
+              may use what is sent to improve its products, and people at Google may review it. Do not use Smart scan on
+              receipts that show sensitive details such as full card numbers.
+            </p>
+            <p>
+              If Smart scan is unavailable, the app falls back to reading the photo in your browser. In that case the
+              photo is not sent anywhere for scanning; your browser downloads the scanning software and language files
+              from the jsDelivr public CDN (cdn.jsdelivr.net) the first time.
+            </p>
+          </>
+        ) : (
+          <p>
+            Scanning a receipt happens in your browser. The photo is not sent to us or to any other service for scanning.
+            The first time you scan, your browser downloads the scanning software and language files from the jsDelivr
+            public CDN (cdn.jsdelivr.net).
+          </p>
+        )}
       </LegalSection>
 
       <LegalSection title="Service providers">
@@ -76,6 +93,7 @@ export default function PrivacyPage() {
           <li>Vercel: website hosting and receipt photo storage (Vercel Blob);</li>
           <li>Prisma: database hosting (Prisma Postgres);</li>
           {googleEnabled && <li>Google: optional sign-in.</li>}
+          {smartScanEnabled && <li>Google: reading receipt photos with the Gemini API (Smart scan).</li>}
         </ul>
         <p>These providers may store data on servers outside Indonesia.</p>
       </LegalSection>
@@ -83,8 +101,9 @@ export default function PrivacyPage() {
       <LegalSection title="Cookies and local storage">
         <p>
           We use one essential cookie to keep you signed in. It is encrypted and holds your account identifier and
-          name. The sign-in process also sets short-lived security cookies. Your light or dark mode choice is saved in
-          your browser&apos;s local storage. We do not use analytics, advertising or tracking cookies.
+          name. The sign-in process also sets short-lived security cookies. Your
+          light or dark mode choice is saved in your browser&apos;s local storage. We do not use analytics, advertising
+          or tracking cookies.
         </p>
       </LegalSection>
 
@@ -126,6 +145,12 @@ export default function PrivacyPage() {
 
       <LegalSection title="Children">
         <p>{site.name} is intended for adults. Do not use it if you are under 18 without a parent or guardian&apos;s permission.</p>
+      </LegalSection>
+
+      <LegalSection title="Changes to this policy">
+        <p>
+          If we change this policy, we will update the date at the top of this page.
+        </p>
       </LegalSection>
     </LegalPage>
   );

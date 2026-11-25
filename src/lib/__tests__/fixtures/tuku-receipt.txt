@@ -1,0 +1,41 @@
+TOKO KOPI TUKU
+BSD ONLINE
+=============================
+BILL:653232256. 25/11/26 15:25:56
+TBL:M1|POS:1|CSH:YUNI
+PRINT TIME: 25/11/2026 15:27:58
+=============================
+Es Kopi Susu Tetangga [OL]
+1x 27,000 27,000
+* EXTRA MILK - SOMANTRI
+Es Kopi Susu Tetangga [OL]
+2x 27,000 54,000
+* LESS SWEET - ANDERSEN,ERIC
+Es Kopi Susu Tetangga [OL]
+1x 27,000 27,000
+* IMAM
+Es Kopi Susu Tetangga [OL]
+1x 27,000 27,000
+* LESS ICE - PAPIN
+Iced Kopi Hitam Tetangga [OL]
+1x 26,000 26,000
+* LESS ICE - FELICIA
+Gofood Payday Rp 1000
+5x -1,000 -5,000
+=============================
+Sub Total 156,000
+-----------------------------
+TOTAL 156,000
+-----------------------------
+Harga Sudah Termasuk Pajak
+PB1 14,182
+-----------------------------
+Pembayaran
+- GRAB 956
+156,000
+-----------------------------
+TUNAI 156,000
+KEMBALIAN 0
+=============================
+GF 956 (GRAB 956)
+NO PANGGIL: 25.294

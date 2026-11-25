@@ -17,6 +17,7 @@ for (const key of ["DATABASE_URL", "AUTH_SECRET"]) {
 if (Boolean(process.env.AUTH_GOOGLE_ID) !== Boolean(process.env.AUTH_GOOGLE_SECRET)) {
   problems.push("Set both AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET, or neither");
 }
+if (!process.env.GEMINI_API_KEY) warnings.push("GEMINI_API_KEY is not set: Smart scan is off, the free in-browser scanner is used.");
 if (!process.env.BLOB_READ_WRITE_TOKEN) warnings.push("BLOB_READ_WRITE_TOKEN is not set: receipt photos will not be saved.");
 
 for (const w of warnings) console.warn(`[launch check] warning: ${w}`);

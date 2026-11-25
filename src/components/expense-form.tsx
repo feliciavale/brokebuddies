@@ -6,6 +6,7 @@ import { saveExpense, type ExpenseInput } from "@/app/actions";
 import { splitItemized, splitSimple, type SplitType } from "@/lib/split";
 import { formatIDR } from "@/lib/money";
 import { compressImage } from "@/lib/image";
+import { matchPeople, type ParsedReceipt } from "@/lib/receipt-parser";
 import { MoneyInput } from "./money-input";
 import { MemberPicker } from "./member-picker";
 import { Camera, Plus, ScanText, X } from "lucide-react";
@@ -21,6 +22,8 @@ interface ItemRow {
   quantity: number;
   unitPrice: number;
   assignees: string[];
+  /** names printed on the receipt for this item, shown as a hint */
+  receiptNames?: string[];
 }
 
 export interface ExpenseFormInitial {
@@ -55,13 +58,14 @@ function todayInJakarta() {
 let keySeq = 0;
 const newKey = () => `row-${++keySeq}`;
 
-function toRows(items: ExpenseFormInitial["items"]): ItemRow[] {
+function toRows(items: (ExpenseFormInitial["items"][number] & { people?: string[] })[]): ItemRow[] {
   return items.map((i) => {
     const unit = i.price / i.quantity;
+    const receiptNames = i.people?.length ? i.people : undefined;
     // keep the receipt's line total exact if it doesn't divide evenly
     return Number.isInteger(unit)
-      ? { key: newKey(), name: i.name, quantity: i.quantity, unitPrice: unit, assignees: i.assignees }
-      : { key: newKey(), name: `${i.quantity}x ${i.name}`, quantity: 1, unitPrice: i.price, assignees: i.assignees };
+      ? { key: newKey(), name: i.name, quantity: i.quantity, unitPrice: unit, assignees: i.assignees, receiptNames }
+      : { key: newKey(), name: `${i.quantity}x ${i.name}`, quantity: 1, unitPrice: i.price, assignees: i.assignees, receiptNames };
   });
 }
 
@@ -70,11 +74,14 @@ export function ExpenseForm({
   members,
   meId,
   initial,
+  smartScan = false,
 }: {
   groupId: string;
   members: Member[];
   meId: string;
   initial?: ExpenseFormInitial;
+  /** true when the server has a Gemini key, so photos can be read by AI */
+  smartScan?: boolean;
 }) {
   const router = useRouter();
   const [pending, startSaving] = useTransition();
@@ -89,6 +96,8 @@ export function ExpenseForm({
   // receipt
   const [receiptUrl, setReceiptUrl] = useState<string | null>(initial?.receiptUrl ?? null);
   const [photo, setPhoto] = useState<Blob | null>(null);
+  // the full-size photo, kept only in the browser: scanning reads small receipt text better at full size
+  const [original, setOriginal] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(initial?.receiptUrl ?? null);
   const [ocr, setOcr] = useState<{ pct: number; status: string } | null>(null);
   const [ocrNote, setOcrNote] = useState<string | null>(null);
@@ -155,6 +164,7 @@ export function ExpenseForm({
     setOcrNote(null);
     try {
       const small = await compressImage(file);
+      setOriginal(file);
       setPhoto(small);
       setPreview(URL.createObjectURL(small));
       setReceiptUrl(null); // will upload the new one on save
@@ -163,32 +173,70 @@ export function ExpenseForm({
     }
   }
 
+  /** Put a scanned receipt into the form: items, who had what, tax, service, discount. */
+  function applyScan(r: ParsedReceipt, how: string) {
+    if (r.items.length === 0) {
+      setOcrNote("No items found. Try a sharper photo taken straight on, or type the items below.");
+      return;
+    }
+    const scanned = toRows(r.items.map((i) => ({ ...i, assignees: matchPeople(i.people, members) })));
+    const assigned = scanned.filter((row) => row.assignees.length > 0).length;
+    const hasTyped = items.some((p) => p.name.trim() || p.unitPrice > 0);
+    const replace = !hasTyped || window.confirm("Replace the items already in the list with the scanned ones?");
+    setItems((prev) => (replace ? scanned : [...prev.filter((p) => p.name.trim() || p.unitPrice > 0), ...scanned]));
+    setTax(r.tax);
+    setService(r.service);
+    setDiscount(r.discount);
+    setReceiptTotal(r.total);
+
+    const notes = [`${how} found ${r.items.length} ${r.items.length === 1 ? "item" : "items"}.`];
+    if (assigned) notes.push(`${assigned} ${assigned === 1 ? "was" : "were"} assigned from names printed on the receipt.`);
+    if (r.taxIncluded && r.taxPrinted) notes.push(`Prices already include tax (${formatIDR(r.taxPrinted)}), so none was added.`);
+    if (r.discount) notes.push(`Discount ${formatIDR(r.discount)} applied.`);
+    notes.push("Check each line against the receipt before saving.");
+    setOcrNote(notes.join(" "));
+  }
+
+  async function scanInBrowser(source: Blob) {
+    const { scanReceipt } = await import("@/lib/ocr");
+    return scanReceipt(source, (pct, status) => setOcr({ pct, status }));
+  }
+
   async function scan() {
     if (!photo && !preview) return;
     setOcr({ pct: 0, status: "starting" });
     setOcrNote(null);
     try {
-      const { scanReceipt } = await import("@/lib/ocr");
-      const source: Blob = photo ?? (await fetch(preview!).then((r) => r.blob()));
-      const r = await scanReceipt(source, (pct, status) => setOcr({ pct, status }));
-      if (r.items.length === 0) {
-        setOcrNote("No items found. Try a sharper photo taken straight on, or type the items below.");
-      } else {
-        const rows = toRows(r.items.map((i) => ({ ...i, assignees: [] })));
-        // replace empty starter row, otherwise append
-        setItems((prev) => [...prev.filter((p) => p.name.trim() || p.unitPrice > 0), ...rows]);
-        if (r.tax) setTax(r.tax);
-        if (r.service) setService(r.service);
-        if (r.discount) setDiscount(r.discount);
-        setReceiptTotal(r.total);
-        setOcrNote(`Found ${r.items.length} ${r.items.length === 1 ? "item" : "items"}. Check each name and price against the receipt, then pick who had what.`);
+      const source: Blob = original ?? photo ?? (await fetch(preview!).then((r) => r.blob()));
+
+      if (smartScan) {
+        try {
+          // a sharper copy than the stored one, still small enough to upload quickly
+          const forAi = await compressImage(source instanceof File ? source : new File([source], "receipt.jpg"), 2000, 0.85);
+          const fd = new FormData();
+          fd.append("file", forAi, "receipt.jpg");
+          const res = await fetch("/api/scan-receipt", { method: "POST", body: fd });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error ?? "Smart scan failed");
+          applyScan(json.receipt as ParsedReceipt, "Smart scan");
+          return;
+        } catch (err) {
+          // fall back to the free in-browser scanner
+          const reason = err instanceof Error ? err.message : "Smart scan failed";
+          const r = await scanInBrowser(source);
+          applyScan(r, `${reason} Basic scan`);
+          return;
+        }
       }
+
+      applyScan(await scanInBrowser(source), "Scan");
     } catch {
       setOcrNote("Scanning failed. The scanner needs an internet connection the first time it runs. You can also type the items below.");
     } finally {
       setOcr(null);
     }
   }
+
 
   async function uploadPhoto(): Promise<string | null> {
     if (!photo) return receiptUrl;
@@ -330,7 +378,7 @@ export function ExpenseForm({
           {preview && splitType === "ITEMIZED" && (
             <button type="button" className="btn-primary btn-sm" onClick={scan} disabled={!!ocr}>
               <ScanText size={14} aria-hidden />
-              {ocr ? `Scanning ${ocr.pct}%` : "Scan items from photo"}
+              {ocr ? (smartScan && ocr.pct === 0 ? "Reading receipt..." : `Scanning ${ocr.pct}%`) : smartScan ? "Smart scan" : "Scan items from photo"}
             </button>
           )}
         </div>
@@ -361,6 +409,7 @@ export function ExpenseForm({
                   className="btn btn-sm"
                   onClick={() => {
                     setPhoto(null);
+                    setOriginal(null);
                     setPreview(null);
                     setReceiptUrl(null);
                   }}
@@ -438,6 +487,9 @@ export function ExpenseForm({
                     selected={item.assignees}
                     onChange={(ids) => updateItem(item.key, { assignees: ids })}
                   />
+                  {item.receiptNames && (
+                    <p className="mt-1 text-xs text-muted">On the receipt: {item.receiptNames.join(", ")}</p>
+                  )}
                 </div>
                 <div className="col-span-12 flex items-center justify-between gap-2 sm:col-span-4 sm:justify-end">
                   <span className="text-sm font-semibold tabular-nums">{formatIDR(item.quantity * item.unitPrice)}</span>
