@@ -2,9 +2,9 @@
 
 **Live site: [brokebuddies.vercel.app](https://brokebuddies.vercel.app)**
 
-Split a restaurant bill by what each person ordered. Tax and service are shared in proportion to each order, and everyone sees how to pay back the person who paid: bank account number, or QRIS with the amount already filled in.
+Split a restaurant bill by what each person ordered. Snap the receipt and the items fill themselves in, tax and service are shared in proportion to each order, and everyone sees how to pay back the person who paid: bank account number, or QRIS with the amount already filled in.
 
-Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only guest sign-in), Vercel Blob and Tailwind CSS 4. Runs on free tiers. The custom domain is the only thing you pay for.
+Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only guest sign-in), Vercel Blob, the Gemini API and Tailwind CSS 4. Runs on free tiers. The custom domain is the only thing you pay for.
 
 ## Screenshots
 
@@ -29,6 +29,8 @@ Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only 
 
 **Groups**
 - Create, rename and delete groups (delete asks for confirmation and removes all bills and photos).
+- Group names are unique per person (ignoring capitals), and tapping Create several times still makes only one group.
+- New and changed groups and bills appear straight away, without refreshing the page.
 - Invite people with a link. Signing in from the link brings them straight back to join.
 - Add people who have no account as guests, with optional bank details and QRIS.
 - "This is me" lets someone who joins later take over their guest spot.
@@ -38,7 +40,10 @@ Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only 
 **Bills**
 - Split by item (receipt), equally, by exact amounts, by percent or by shares.
 - Receipt photo: compressed in the browser to roughly 200 KB, then stored on Vercel Blob. Deleting a bill or group deletes its photo.
-- Receipt scanning: fills in items, quantities, tax, service and discount using Tesseract.js in the browser. No server and no API key. Everything stays editable, and the app warns when the items do not match the total printed on the receipt.
+- Receipt scanning fills in items, quantities, tax, service and discount. Two modes, chosen automatically:
+  - **Smart scan** (when `GEMINI_API_KEY` is set): the photo is read by Google Gemini on the server. It handles crumpled, angled or dim photos and unusual layouts, recognises prices that already include tax so tax is not added twice, and pre-selects people whose names are printed under items (for example `* LESS ICE - FELICIA`).
+  - **In-browser scan** (Tesseract.js): used when Smart scan is off, has reached its free daily limit, or fails. The photo never leaves the device. Works best on clear, flat, well-lit receipts.
+- Everything a scan fills in stays editable, and the app warns when the items do not match the total printed on the receipt.
 - Typing items by hand always works, with or without a photo.
 - "Who had this?" dropdown per item. Two or more people split that item evenly.
 - Tax (PB1), service and discount are shared in proportion to each person's subtotal. Quick 10% / 11% and 5% / 10% buttons.
@@ -56,6 +61,7 @@ Built with Next.js 16, Prisma 7 + Prisma Postgres, Auth.js (Google or name-only 
 
 **Site**
 - Light and dark mode (follows the device, with a toggle).
+- Loading placeholders while pages open, and server functions in Singapore next to the database.
 - Favicon, Apple touch icon, Privacy Policy, Terms & Conditions, robots.txt and sitemap.xml.
 - No analytics, no tracking cookies, no "made with" badge.
 
@@ -83,7 +89,7 @@ Create `.env` before `npm install`: installing runs `prisma generate`, which rea
 ### Step 2. Database (free)
 
 1. Go to console.prisma.io and create a project (region: Asia Pacific, Singapore) with a Prisma Postgres database. Use a separate database for each app.
-2. Copy the direct `postgres://...` connection string into `DATABASE_URL` in `.env`.
+2. Copy the direct `postgres://...` connection string into `DATABASE_URL` in `.env`. If it ends with `sslmode=require`, change that to `sslmode=verify-full`: the connection is the same, and it stops a security warning in the logs.
 3. Create the tables:
 
    ```powershell
@@ -114,7 +120,19 @@ Skip this step to offer only guest sign-in.
 3. Copy the client ID and secret into `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` straight away (the secret may not be shown again).
 4. Audience: while testing, add your Gmail under Test users. Before launch, click **Publish app**. The app only asks for name, email and profile picture, so Google does not need to review it.
 
-### Step 5. Run locally
+### Step 5. Smart scan with Gemini (optional, free, no card needed)
+
+Skip this step to use only the in-browser scan.
+
+1. Go to aistudio.google.com > **Get API key** > **Create API key**, in a project named BrokeBuddies. Do not turn on billing: the free tier is enough.
+2. Put the key in `GEMINI_API_KEY` in `.env`. Never commit it or show it in a screenshot. If it leaks, delete it in AI Studio and create a new one.
+3. Optional: set `GEMINI_MODEL` to another model ID from AI Studio. Without it the app uses `gemini-3.5-flash`.
+
+Free tier limits are set by Google per project (not per key), change over time, and are shown in AI Studio > **Rate Limit**. At the time of writing, Flash allows 5 scans per minute and 20 per day, shared by everyone using the site, resetting at midnight Pacific time (15:00 WIB). One receipt is one request. When the limit is reached, the app falls back to the in-browser scan automatically.
+
+On the free tier, Google may use the photos sent to Gemini to improve its products. The Privacy Policy says so when Smart scan is on.
+
+### Step 6. Run locally
 
 Also set in `.env`:
 
@@ -129,18 +147,21 @@ AUTH_TRUST_HOST=true
 npm run dev
 ```
 
-Open http://localhost:3000. Receipt photos are only saved once `BLOB_READ_WRITE_TOKEN` is set (Step 6); until then bills save without the photo, and scanning still works.
+Open http://localhost:3000. Receipt photos are only saved once `BLOB_READ_WRITE_TOKEN` is set (Step 7); until then bills save without the photo, and scanning still works.
 
-### Step 6. Deploy to Vercel (free Hobby plan)
+### Step 7. Deploy to Vercel (free Hobby plan)
 
 1. Vercel > Add New > Project > import `feliciavale/brokebuddies`.
-2. Environment Variables: add `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (only if using Google), `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_OPERATOR_NAME` and `NEXT_PUBLIC_SITE_URL` (`https://brokebuddies.vercel.app` until you have a domain). Do not add `AUTH_TRUST_HOST`.
-3. Storage > Create > Blob, then connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`. Copy it into your local `.env` too if you want photo uploads while developing.
-4. Deploy. Vercel runs `npm run vercel-build`: launch check, `prisma generate`, `prisma migrate deploy`, `next build`.
+2. Environment Variables: add `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (only if using Google), `GEMINI_API_KEY` (only if using Smart scan, as Sensitive), `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_OPERATOR_NAME` and `NEXT_PUBLIC_SITE_URL` (`https://brokebuddies.vercel.app` until you have a domain). Do not add `AUTH_TRUST_HOST`.
+3. Settings > Functions > Function Region: choose **Singapore (sin1)**, the same region as the database. The default (Washington, D.C.) makes every page noticeably slower.
+4. Storage > Create > Blob: region Singapore, access **Public**, and tick **Add a read-write token env var**. Connect it to the project for Production and Preview. This adds `BLOB_READ_WRITE_TOKEN` (plus `BLOB_STORE_ID` and `BLOB_WEBHOOK_PUBLIC_KEY`, which the app does not use but are harmless). Copy the token into your local `.env` too if you want photo uploads while developing.
+5. Deploy. Vercel runs `npm run vercel-build`: launch check, `prisma generate`, `prisma migrate deploy`, `next build`.
 
-Until a custom domain is connected, also add `SKIP_LAUNCH_CHECK` = `1`. Without it, production builds stop on purpose, because `NEXT_PUBLIC_SITE_URL` is still a `vercel.app` address. Remove it in Step 7.
+Until a custom domain is connected, also add `SKIP_LAUNCH_CHECK` = `1`. Without it, production builds stop on purpose, because `NEXT_PUBLIC_SITE_URL` is still a `vercel.app` address. Remove it in Step 8.
 
-### Step 7. Connect the custom domain
+Changing an environment variable in Vercel only takes effect after a redeploy: Deployments > latest > ⋯ > **Redeploy**.
+
+### Step 8. Connect the custom domain
 
 1. Buy a domain from any registrar. This is the only paid step. Indonesian options such as `.my.id`, `.id` or `.web.id` are sold by local registrars; check their price and registration requirements.
 2. Vercel > Project > Settings > Domains > add your domain, then add the DNS records Vercel shows at your registrar.
@@ -148,21 +169,22 @@ Until a custom domain is connected, also add `SKIP_LAUNCH_CHECK` = `1`. Without 
 4. Set `NEXT_PUBLIC_SITE_URL` to `https://your-domain`, delete `SKIP_LAUNCH_CHECK`, and redeploy.
 5. If you use Google, add the domain's origin and redirect URI to your Google client (Step 4).
 
-### Step 8. Launch checklist
+### Step 9. Launch checklist
 
 | Requirement | Where it is handled |
 |---|---|
-| Custom domain connected | Step 7. The production build stops if `NEXT_PUBLIC_SITE_URL` is missing or still a `vercel.app` address. |
+| Custom domain connected | Step 8. The production build stops if `NEXT_PUBLIC_SITE_URL` is missing or still a `vercel.app` address. |
 | Site favicon | `src/app/favicon.ico`, `src/app/icon.svg`, `src/app/apple-icon.png` |
 | No "made with AI" tag | No badge, generator tag or AI credit anywhere in the site. Vercel's toolbar can appear on preview deployments; turn it off under Project Settings > General. |
 | Privacy Policy | `/privacy`, linked in the footer and next to the sign-in button |
 | Terms & Conditions | `/terms`, linked in the footer and next to the sign-in button |
 | Contact email on legal pages | The production build stops if `NEXT_PUBLIC_CONTACT_EMAIL` is missing |
 
-Run `npm run check:launch` at any time to see what is still missing.
+Run `npm run check:launch` at any time to see what is still missing. It also warns when `GEMINI_API_KEY` or `BLOB_READ_WRITE_TOKEN` is not set.
 
 Before launch, also:
 - Sign in on the real domain with Google and as a guest, create a group, add a bill with a receipt photo and check the photo appears.
+- Try Smart scan on a few real receipts and check the button says "Smart scan", not "Scan items from photo".
 - Scan a filled-in QRIS with GoPay, DANA, OVO and your bank app to confirm they accept the amount.
 - Publish the Google app (Step 4) so people outside your test users can sign in.
 - Read the Privacy Policy and Terms and adjust them to your situation. They describe what this app does, but they are not legal advice. After editing, update `legalUpdated` in `src/lib/site.ts`.
@@ -180,6 +202,8 @@ Before launch, also:
 | `NEXT_PUBLIC_CONTACT_EMAIL` | yes in production | Footer and legal pages |
 | `NEXT_PUBLIC_OPERATOR_NAME` | no | Operator name in footer and legal pages (defaults to "BrokeBuddies") |
 | `BLOB_READ_WRITE_TOKEN` | recommended | Receipt photo storage. Without it, bills save without photos |
+| `GEMINI_API_KEY` | no | Turns on Smart scan for the whole site. Without it, only the in-browser scan is used |
+| `GEMINI_MODEL` | no | Gemini model ID for Smart scan (defaults to `gemini-3.5-flash`) |
 | `AUTH_TRUST_HOST` | local only | Lets Auth.js run on localhost |
 | `SKIP_LAUNCH_CHECK` | temporary | Set to `1` to deploy on `vercel.app` before the custom domain is connected |
 
@@ -189,7 +213,7 @@ Before launch, also:
 |---|---|
 | `npm run dev` | Development server |
 | `npm run typecheck` | Generates Next.js route types, then runs TypeScript |
-| `npm test` | Unit tests: splitting, rounding, balances, QRIS, receipt parser |
+| `npm test` | Unit tests: splitting, rounding, balances, QRIS, receipt parser, Smart scan result checks |
 | `npm run lint` | ESLint |
 | `npm run db:migrate` | Create or apply a migration (`prisma migrate dev`) |
 | `npm run db:studio` | Browse the database |
@@ -203,6 +227,8 @@ Before launch, also:
 | Privacy Policy / Terms text | `src/app/privacy/page.tsx`, `src/app/terms/page.tsx` |
 | Landing page copy | `src/app/page.tsx` |
 | Sign-in form | `src/components/sign-in-form.tsx` |
+| Smart scan instructions and model | `src/lib/ai-receipt.ts`, or `GEMINI_MODEL` |
+| In-browser receipt parsing rules | `src/lib/receipt-parser.ts` |
 | Colours and component styles | `src/app/globals.css` |
 | Database tables | `prisma/schema.prisma`, then `npx prisma migrate dev --name what-changed` |
 
@@ -212,6 +238,14 @@ Before launch, also:
 - `allocate(total, weights)` splits an amount by weight using the largest-remainder method, so the parts always add up exactly to the total.
 - By item: each item is split evenly between the people who had it. Then tax + service - discount is allocated in proportion to each person's subtotal.
 - Balances: the payer is credited the bill total, each person is debited their share, and recorded payments move money back. Suggestions pair the largest debtor with the largest creditor until everyone is at zero.
+
+### How receipt scanning works
+
+1. The browser keeps the full-size photo for scanning and a compressed copy for storage.
+2. **Smart scan:** the photo is resized to about 2000 px and sent to `/api/scan-receipt`, which checks sign-in, accepts images only up to 4 MB, and calls the Gemini API with instructions for Indonesian receipts and a fixed JSON schema (items with name, quantity, line total and printed names, plus discount, tax, tax-included flag, service, subtotal and total). The answer is validated with Zod before it reaches the form. If the receipt says prices include tax, or the items already add up to the total, tax is set to 0.
+3. **In-browser scan:** the photo is converted to greyscale, thresholded (Otsu) and scaled, then read by Tesseract.js (Indonesian + English). `parseReceiptText` turns the text into items, handling names and prices on separate lines, quantity lines, promo lines, tax-included notes and the totals footer.
+4. Names printed on the receipt are matched to group members by first name and pre-selected in "Who had this?".
+5. If Smart scan fails (limit reached, network error, no key), the in-browser scan runs instead and the note says why.
 
 ### How QRIS works here
 
@@ -223,6 +257,7 @@ A personal QRIS is an EMVCo payload. The app reads it from the uploaded image (j
 - All writes are validated with Zod on the server.
 - Sessions are encrypted cookies (JWT) holding only the account id, name, email and picture. Payment details are rendered on the server, only for members of the same group.
 - Receipt uploads require sign-in, accept images only and are limited to 2 MB.
+- Smart scan requires sign-in, accepts images only up to 4 MB, and the Gemini key stays on the server. It is never sent to the browser.
 - Guest sign-up has no limit: anyone can create an account by typing a name. Fine for friends; add rate limiting before a large public launch.
 
 ### Project layout
@@ -235,16 +270,18 @@ src/auth.ts                          sign-in: guest (name only) and optional Goo
 src/app/actions.ts                   all server actions (writes)
 src/app/page.tsx                     landing page
 src/app/privacy, src/app/terms       legal pages
-src/app/groups/...                   groups, bills, result page
+src/app/groups/...                   groups, bills, result page, loading placeholders
 src/app/join/[code]                  invite page
 src/app/profile                      profile and delete account
 src/app/api/receipts/route.ts        receipt photo upload
+src/app/api/scan-receipt/route.ts    Smart scan endpoint (Gemini)
 src/components/expense-form.tsx      bill form: photo, scan, items, who-had-what
 src/components/sign-in-form.tsx      Google + guest sign-in form
 src/lib/split.ts                     money maths (pure, tested)
 src/lib/qris.ts                      QRIS parse, validate, add amount
+src/lib/ai-receipt.ts                Gemini request, schema and result checks
 src/lib/receipt-parser.ts            OCR text to items, tax, service, discount
-src/lib/ocr.ts                       in-browser Tesseract.js
+src/lib/ocr.ts                       in-browser Tesseract.js with image clean-up
 src/lib/site.ts                      site name, URL, contact, legal date
 src/app/globals.css                  palette and design tokens
 docs/screenshots/                    README images
